@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"syscall"
 	"time"
 )
@@ -66,37 +67,14 @@ func main() {
 	// Выходной канал
 	outputChannel := make(chan interface{})
 
-	// Канал для обработки сигналов от ОС
-	sigCh := make(chan os.Signal, 1)
-
-	// Канал для завершения процесса
-	done := make(chan bool, 1)
-
-	// Флаг того, что процесс в завершении
-	var stopping bool
-
 	go inputStreamCreator(inputChannel)
 
 	go channelSplitter(inputChannel, outputChannel)
 
 	go resultCreator(outputChannel)
 
-	// Не уверен, что правильно понял gracefull shutdown, и возможно усложнил, но вроде работает
-	go func() {
-		for {
-			sig := <-sigCh
-			if sig == syscall.SIGINT {
-				if stopping {
-					os.Exit(1)
-				} else {
-					stopping = true
-					go func() {
-						done <- true
-					}()
-				}
-			}
-		}
-	}()
-
-	<-done
+	// Новый gracefull shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT)
+	<-quit
 }
